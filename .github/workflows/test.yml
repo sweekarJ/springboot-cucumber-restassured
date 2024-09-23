@@ -13,10 +13,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up JDK 11
-        uses: actions/setup-java@v1 # Updated to the latest version
+      - name: Set up JDK 17
+        uses: actions/setup-java@v1
         with:
-          java-version: '11'
+          java-version: '17'
 
       - name: Build with Maven
         run: mvn clean install
@@ -32,19 +32,15 @@ jobs:
           # Parse Cucumber JSON and update Azure DevOps test case results
           result_file=target/cucumber.json
           
-          # Iterate through test cases
           for test_case_id in $(jq -r '.[] | select(.tags[]?.name | startswith("@ADO_TC_")) | .tags[]?.name' $result_file | sed 's/@ADO_TC_//g'); do
-            # Get the status of the test case
             status=$(jq -r --arg test_case_id "@ADO_TC_$test_case_id" '.[] | select(.tags[].name == $test_case_id) | .elements[].steps[].result.status' $result_file)
           
-            # Determine the outcome based on the status
             if [[ "$status" == "passed" ]]; then
               outcome="Passed"
             else
               outcome="Failed"
             fi
           
-            # Send results to Azure DevOps
             curl -X PATCH \
               -H "Authorization: Basic $(echo -n ${{ secrets.AZURE_DEVOPS_PAT }} | base64)" \
               -H "Content-Type: application/json" \
