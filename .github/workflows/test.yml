@@ -1,0 +1,50 @@
+name: Run Cucumber Tests and Update ADO
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: '11'
+
+      - name: Build with Maven
+        run: mvn clean install
+
+      - name: Run Cucumber Tests
+        run: mvn test
+
+      - name: Generate Cucumber JSON Report
+        run: mvn test -Dcucumber.options="--plugin json:target/cucumber.json"
+
+      - name: Parse Cucumber Report and Update ADO Test Case Status
+        run: |
+          # Parse Cucumber JSON and update Azure DevOps test case results
+          result_file=target/cucumber.json
+          for test_case_id in $(jq -r '.[] | select(.tags[]?.name | startswith("@ADO_TC_")) | .tags[]?.name' $result_file | sed 's/@ADO_TC_//g'); do
+            status=$(jq -r --arg test_case_id "@ADO_TC_$test_case_id" '.[] | select(.tags[].name == $test_case_id) | .elements[].steps[].result.status' $result_file)
+            if [[ "$status" == "passed" ]]; then
+              outcome="Passed"
+            else
+              outcome="Failed"
+            fi
+          
+            # Send results to Azure DevOps
+            curl -X PATCH \
+              -H "Authorization: Basic $(echo -n ${{ secrets.AZURE_DEVOPS_PAT }} | base64)" \
+              -H "Content-Type: application/json" \
+              -d "{\"outcome\":\"$outcome\"}" \
+              https://dev.azure.com/{organization}/{project}/_apis/test/runs/{runId}/results?api-version=6.0
+          done
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
