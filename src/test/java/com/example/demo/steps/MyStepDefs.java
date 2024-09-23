@@ -5,7 +5,9 @@ import io.cucumber.java.en.When;
 import io.cucumber.java.en.Then;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.test.context.SpringBootTest;
 
+@SpringBootTest
 public class MyStepDefs {
     private static final Logger logger = LoggerFactory.getLogger(MyStepDefs.class);
 
